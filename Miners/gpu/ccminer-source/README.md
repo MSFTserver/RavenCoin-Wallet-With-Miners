@@ -1,12 +1,16 @@
 # ccminer
 
-Modified to add support for X16R (Ravencoin). Work in progress... lots of room for improvement. Use `-a x16r`.
+Modified to add support for X16R (Ravencoin). Work in progress... lots of room for improvement. Use `-a x16r` and ' --num-fallback-threads n' where n is > 0.
 
-[Windows x64 builds](https://github.com/todd1251/ccminer/releases)
+My interim  [Windows x64 builds](https://github.com/phasiclabs/ccminer-x16r/releases)
+
+More official/better supported [Windows x64 builds](https://github.com/todd1251/ccminer/releases)
 
 BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)
 
 RVN donation address: RWoyvvT5exmbs937QfRavf4fxB5mvijG6R (penfold)
+
+RVN donation address: RE9hcu1LjVbzL1wzsnpnJP28B2x2Y4qc55 (phabit)
 
 ---
 

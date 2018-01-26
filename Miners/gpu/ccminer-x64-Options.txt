@@ -109,6 +109,7 @@
       --cputest         debug hashes from cpu algorithms
       --cpu-affinity    set process affinity to specific cpu core(s) mask
       --cpu-priority    set process priority (default: 0 idle, 2 normal to 5 highest)
+      --num-fallback-threads   sets the number of threads/cores to use while in CPU fallback
   -c, --config=FILE     load a JSON-format configuration file
                         can be from an url with the http:// prefix
   -V, --version         display version information and exit
