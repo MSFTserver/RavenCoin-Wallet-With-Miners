@@ -1,5 +1,7 @@
 here is a cpu and gpu miner for Ravencoin to get you started!
+
                 (Currently Windows Only)
+
        **GPU miner provided by penfold & MTarget**
 
 1. Choose a Pool
