@@ -1,17 +1,17 @@
 # Raven Wallet Windows Instructions
 
  1) double click raven-qt.exe to start the wallet
- 
+
  2) on first start the wallet will have to sync the
     the blockchain this may take anywhere from a few
-	minutes to days depending on your location and 
-	internet connection speed.
-	
- 3) you can hide the syncing windows but no 
+	  minutes to days depending on your location and 
+	  internet connection speed.
+
+ 3) you can hide the syncing windows but no
     transactions can be made and balances may be
-    reported differntly till the blockchain has 
-	been fully synced
-	
+    reported differently till the blockchain has
+	  been fully synced
+
 
 
 What is Raven?
@@ -31,18 +31,18 @@ License
 
 Raven Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
 information or see https://opensource.org/licenses/MIT.
-	
+
 About Ravencoin
 ----------------
 A digital peer to peer network for the facilitation of asset transfer.
 
 
 
-In the fictional world of Westeros, ravens are used as messengers who carry statements of truth. Ravencoin is a use case specific blockchain designed to carry statements of truth about who owns what assets. 
+In the fictional world of Westeros, ravens are used as messengers who carry statements of truth. Ravencoin is a use case specific blockchain designed to carry statements of truth about who owns what assets.
 
 
 
-Thank you to the Bitcoin developers. 
+Thank you to the Bitcoin developers.
 
 The Ravencoin project is launched based on the hard work and continuous effort of over 400 Bitcoin developers who made over 14,000 commits over the life to date of the Bitcoin project. We are eternally grateful to you for your efforts and diligence in making a secure network and for their support of free and open source software development.  The Ravencoin experiment is made on the foundation you built.
 
@@ -56,7 +56,7 @@ A blockchain is a ledger showing the value of something and allowing it to be tr
 
 The success of the Etherium ERC 20 token shows the demand for tokenized assets that use another blockchain.  Tokens offer many advantages to traditional shares or other participation mechanisms such as faster transfer, possibly increased user control and censorship resistance and reduction or elimination of the need for trusted third parties.
 
-Bitcoin also has the capability of serving as the rails for tokens by using projects such as Omnilayer, RSK or Counterparty. However, neither Bitcoin nor Ethereum was specifically designed for facilitating ownership of other assets. 
+Bitcoin also has the capability of serving as the rails for tokens by using projects such as Omnilayer, RSK or Counterparty. However, neither Bitcoin nor Ethereum was specifically designed for facilitating ownership of other assets.
 
 Ravencoin is designed to be a use case specific blockchain designed to efficiently handle one specific function: the transfer of assets from one party to another.
 
