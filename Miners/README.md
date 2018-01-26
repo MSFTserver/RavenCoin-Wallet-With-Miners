@@ -1,6 +1,6 @@
 here is a cpu and gpu miner for Ravencoin to get you started!
 
-(Currently Windows Only)
+(Currently Windows Only)(Mac and Linux will have to compile there own versions for now)
 
 **GPU miner provided by penfold & MTarget**
 
