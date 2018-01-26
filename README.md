@@ -1,20 +1,6 @@
-# Raven Wallet Windows Instructions
+### I have compiled a repository of the current [Ravencoin](https://github.com/RavenProject/Ravencoin) Wallets and miners available to make this easier to find and distribute
 
- 1) double click raven-qt.exe to start the wallet
-
- 2) on first start the wallet will have to sync the
-    the blockchain this may take anywhere from a few
-	  minutes to days depending on your location and 
-	  internet connection speed.
-
- 3) you can hide the syncing windows but no
-    transactions can be made and balances may be
-    reported differently till the blockchain has
-	  been fully synced
-
-
-
-What is Raven?
+# What is Raven?
 ----------------
 
 Raven is an experimental digital currency that enables instant payments to
@@ -26,13 +12,13 @@ software which enables the use of this currency.
 For more information, as well as an immediately useable, binary version of
 the Raven Core software, see https://ravencoin.org
 
-License
+## License
 -------
 
-Raven Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
+Raven Core is released under the terms of the MIT license. See [COPYING](https://github.com/RavenProject/Ravencoin/blob/master/COPYING) for more
 information or see https://opensource.org/licenses/MIT.
 
-About Ravencoin
+## About Ravencoin
 ----------------
 A digital peer to peer network for the facilitation of asset transfer.
 
@@ -47,7 +33,7 @@ Thank you to the Bitcoin developers.
 The Ravencoin project is launched based on the hard work and continuous effort of over 400 Bitcoin developers who made over 14,000 commits over the life to date of the Bitcoin project. We are eternally grateful to you for your efforts and diligence in making a secure network and for their support of free and open source software development.  The Ravencoin experiment is made on the foundation you built.
 
 
-Abstract
+#### Abstract
 Ravencoin aims to implement a blockchain which is optimized specifically for the use case of transferring assets such as securities from one holder to another. Based on the extensive development and testing of Bitcoin, Ravencoin is built on a fork of the Bitcoin code. Key changes include a faster block reward time and a change in the number, but not weighed distribution schedule, of coins. Ravencoin is free and open source and will be issued and mined transparently with no pre-mine, developer allocation or any other similar set aside. Ravencoin is intended to prioritize user control, privacy and censorship resistance and be jurisdiction agnostic while allowing simple optional additional features for users based on need.
 
 
