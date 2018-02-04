@@ -1,5 +1,5 @@
 A. Solo Mining
- 1. Download Wallet https://github.com/RavenProject/Ravencoin/tree/master/binaries/release.
+ 1. Download Wallet https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/tag/6.0.
  
   - then launch Raven-QT, Encrypt wallet(optional), wait for wallet to sync.
  
@@ -30,12 +30,12 @@ B. Pool Mining
  - GitHub Repo Containing Everything:
      - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners
  - CPU Windows:
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/5.0/cpuminer-Raven-Windows.zip
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/cpuminer-multi-rvn-windows.zip.
  - CPU Linux (credit Epsylon3):
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/5.0/cpuminer-Raven-Source.zip
- - GPU Miner INCOMPLETE Current release (still work in progress):
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/5.0/ccminer-x64-Raven-Windows.zip.
-     - Credit: Penfold, MTarget, Austin, phabit2)
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/cpuminer-multi-rvn-source.zip.
+ - GPU Miner COMPLETE:
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/ccminer-2.2.5-rvn-windows.zip.
+     - (Credit: @tpruvot)
  
 3. Configure your miner.
  - Settings for Stratum (config file)
@@ -53,7 +53,7 @@ B. Pool Mining
  - You then need to change `-u Weblogin.Worker/Address` and the other options to reflect your pool and your own account or wallet depending on the pool you chose to use. Eg, `-u Steve.StevesWorker` or `-u RUiosfoxnA3aMZqS5F65uiAss5xaDejXpV` , if using hash4life you will also need `-p c=RVN` , Then go to "File => Save as" and save the file as "RVN.bat" in the same folder as the miner. You are now ready to mine, double click on "RVN.bat" to start mining.
  
 4. Create a Raven address to receive payments.
- - Downloading the client & block chain: https://github.com/RavenProject/Ravencoin/tree/master/binaries/release.
+ - Downloading the client & block chain: https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/tag/6.0
  - Generate a new address and input it on your account page to receive payments.
  
 ## Want to Donate some mining earnings to the Dev Fund?
@@ -71,15 +71,14 @@ GPU Config:
     rem || User Options!
     set Pool=stratum+tcp://pool.threeeyed.info:3333
     set User=your-address
-    set FallBackThreads=Number-of-Threads
     set ExtraOptions=rigname,stats
     set YourTime=3600
     set DonationTime=300
     set DonationAddress=RT2r9oGxQxbVE1Ji5p5iPgrqpNQLfc8ksH
     :Start
-    ccminer-x64.exe -a x16r -o %Pool% -u %User% -p %ExtraOptions% --num-fallback-threads=%FallBackThreads% --time-limit %YourTime%
+    ccminer-x64.exe -a x16r -o %Pool% -u %User% -p %ExtraOptions% --time-limit %YourTime%
     ping localhost -n 2 >nul
-    ccminer-x64.exe -a x16r -o %Pool% -u %DonationAddress% -p %ExtraOptions% --num-fallback-threads=%FallBackThreads% --time-limit %DonationTime%
+    ccminer-x64.exe -a x16r -o %Pool% -u %DonationAddress% -p %ExtraOptions% --time-limit %DonationTime%
     goto Start
     @pause
 ```
