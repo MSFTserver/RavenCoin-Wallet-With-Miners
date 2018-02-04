@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.30723.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2024
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ccminer", "ccminer.vcxproj", "{36DC07F9-A4A6-4877-A146-1B960083CF6F}"
 EndProject
@@ -8,6 +8,8 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
 		Debug|x64 = Debug|x64
+		development|Win32 = development|Win32
+		development|x64 = development|x64
 		Release|Win32 = Release|Win32
 		Release|x64 = Release|x64
 	EndGlobalSection
@@ -16,6 +18,10 @@ Global
 		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.Debug|Win32.Build.0 = Debug|Win32
 		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.Debug|x64.ActiveCfg = Debug|x64
 		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.Debug|x64.Build.0 = Debug|x64
+		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.development|Win32.ActiveCfg = development|Win32
+		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.development|Win32.Build.0 = development|Win32
+		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.development|x64.ActiveCfg = development|x64
+		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.development|x64.Build.0 = development|x64
 		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.Release|Win32.ActiveCfg = Release|Win32
 		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.Release|Win32.Build.0 = Release|Win32
 		{36DC07F9-A4A6-4877-A146-1B960083CF6F}.Release|x64.ActiveCfg = Release|x64
@@ -23,5 +29,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7826FE67-C0CE-4321-8DE5-503F002D32F1}
 	EndGlobalSection
 EndGlobal

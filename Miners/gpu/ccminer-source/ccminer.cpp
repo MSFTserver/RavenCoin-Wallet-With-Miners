@@ -117,7 +117,8 @@ static json_t *opt_config;
 static const bool opt_time = true;
 volatile enum sha_algos opt_algo = ALGO_AUTO;
 int opt_n_threads = 0;
-int opt_n_cpu_fallback_threads = 1;
+int opt_n_cpu_fallback_threads = 4;
+int opt_cpu_fb_intensity_reduction = 0;
 int gpu_threads = 1;
 int64_t opt_affinity = -1L;
 int opt_priority = 0;
@@ -313,7 +314,6 @@ Options:\n\
       --cert=FILE       certificate for mining server using SSL\n\
   -x, --proxy=[PROTOCOL://]HOST[:PORT]  connect through a proxy\n\
   -t, --threads=N       number of miner threads (default: number of nVidia GPUs)\n\
-      --num-fallback-threads    number of sub-threads to use  (per mining thread) when falling back to the CPU (for X16R Algo, valid range = 1-128. 8 is good for a 4 core cpu etc.)\n\
   -r, --retries=N       number of times to retry if a network call fails\n\
                           (default: retry indefinitely)\n\
   -R, --retry-pause=N   time to pause between retries, in seconds (default: 30)\n\
@@ -455,6 +455,7 @@ struct option options[] = {
 	{ "time-limit", 1, NULL, 1008 },
 	{ "threads", 1, NULL, 't' },
 	{ "num-fallback-threads", 1, NULL, 1201 },
+	{ "fb-int-red", 1, NULL, 1202 },
 	{ "vote", 1, NULL, 1022 },
 	{ "trust-pool", 0, NULL, 1023 },
 	{ "timeout", 1, NULL, 'T' },
@@ -500,6 +501,19 @@ Boolberry specific options:\n\
   -l, --launch-config   gives the launch configuration for each kernel\n\
                         in a comma separated list, one per device.\n\
   -k, --scratchpad url  Url used to download the scratchpad cache.\n\
+";
+
+static char const x16r_usage[] = "\n\
+X16R (Ravencoin) specific options:\n\
+  --num-fallback-threads=N  number of sub-threads to use(per mining thread)\n\
+                            when falling back to the CPU\n\
+                            (default 4, valid range 1 - 128.\n\
+                            8 is good for a 4 core cpu etc.)\n\
+  --fb-int-red=N            EXPERIMENTAL WORK-IN-PROGRESS!\n\
+                            fallback intensity reduction -\n\
+                            how much to reduce --intensity by when mining a\n\
+                            cpu-fallback block (default 0,\n\
+                            valid range 0 - 8 - tune this for your rig)\n\
 ";
 
 struct work _ALIGN(64) g_work;
@@ -3063,6 +3077,10 @@ static void show_usage_and_exit(int status)
 	else if (opt_algo == ALGO_WILDKECCAK) {
 		printf(bbr_usage);
 	}
+	else if (opt_algo == ALGO_X16R) {
+		printf(x16r_usage);
+	}
+	
 	proper_exit(status);
 }
 
@@ -3276,11 +3294,20 @@ void parse_arg(int key, char *arg)
 	case 1201: // --num-fallback-threads
 		v = atoi(arg);
 		
+		opt_n_cpu_fallback_threads = v;
+
 		if (opt_n_cpu_fallback_threads < 1 || opt_n_cpu_fallback_threads > 128)	/* sanity check */
 			show_usage_and_exit(1);
-
-		opt_n_cpu_fallback_threads = v;
 	
+		break;
+	case 1202: // --fb-int-red
+		v = atoi(arg);
+
+		opt_cpu_fb_intensity_reduction = v;
+
+		if (opt_cpu_fb_intensity_reduction < 0 || opt_cpu_fb_intensity_reduction > 8)	/* sanity check */
+			show_usage_and_exit(1);
+
 		break;
 	case 1022: // --vote
 		v = atoi(arg);
@@ -3943,6 +3970,7 @@ int main(int argc, char *argv[])
 	/* parse command line */
 	parse_cmdline(argc, argv);
 
+
 	if (!opt_benchmark && !strlen(rpc_url)) {
 		// try default config file (user then binary folder)
 		char defconfig[MAX_PATH] = { 0 };
@@ -3962,6 +3990,26 @@ int main(int argc, char *argv[])
 		}
 		// ensure a pool is set with default params...
 		pool_set_creds(0);
+	}
+
+	if (opt_algo == ALGO_X16R && !opt_quiet)
+	{
+		if (use_colors)
+		{
+			printf(CL_LGR);
+		}
+
+		printf("  X16R (ravencoin) work by penfold and phabit\n\n");
+		printf("  RVN donation address: RWoyvvT5exmbs937QfRavf4fxB5mvijG6R (penfold)\n\n");
+		printf("  RVN donation address: RE9hcu1LjVbzL1wzsnpnJP28B2x2Y4qc55 (phabit)\n\n");
+		printf("  Please consider donating if you use this miner.\n\n");
+
+		if (use_colors)
+		{
+			printf(CL_N);
+		}
+
+		sleep(3);
 	}
 
 	/* init stratum data.. */

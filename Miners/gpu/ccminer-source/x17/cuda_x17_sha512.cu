@@ -36,6 +36,8 @@
 #define SWAP64(u64) cuda_swab64(u64)
 
 static __constant__ uint64_t c_WB[80];
+static __constant__ uint32_t c_PaddedMessage80[20]; // padded message (80 bytes)
+
 
 static const uint64_t WB[80] = {
 	0x428A2F98D728AE22, 0x7137449123EF65CD, 0xB5C0FBCFEC4D3B2F, 0xE9B5DBA58189DBBC,
@@ -153,10 +155,101 @@ void x17_sha512_gpu_hash_64(const uint32_t threads, uint64_t *g_hash)
 	}
 }
 
+__global__
+/*__launch_bounds__(256, 4)*/
+void x17_sha512_gpu_hash_80(const uint32_t threads, int startNounce, uint64_t *g_outhash)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint64_t *pMessage = (uint64_t*)&c_PaddedMessage80[0];
+
+		/*
+		for (int i = 0; i < 8; i++) {
+			W[i] = SWAP64(pHash[i]);
+		}
+		W[8] = 0x8000000000000000;
+
+#pragma unroll 69
+		for (int i = 9; i<78; i++) {
+			W[i] = 0U;
+		}
+		W[15] = 0x0000000000000200;
+		*/
+		uint64_t W[80];
+#pragma unroll
+		for (int i = 0; i < 10; i++) 
+		{
+			W[i] = SWAP64(pMessage[i]);
+		}
+		W[10] = 0x8000000000000000;
+
+#pragma unroll 67
+		for (int i = 11; i<78; i++) {
+			W[i] = 0U;
+		}
+		W[15] = 0x0000000000000280;
+
+		// Normally ,we would 32 bit endian swap nonce, however SHA512 works internally by 64-bit endian swapping :
+		//W[9] = REPLACE_HIDWORD(W[9], cuda_swab32(startNounce + thread));
+		W[9] = REPLACE_LODWORD(W[9], startNounce + thread);
+
+#pragma unroll 64
+		for (int i = 16; i < 80; i++) {
+			W[i] = SSG5_1(W[i - 2]) + W[i - 7];
+			W[i] += SSG5_0(W[i - 15]) + W[i - 16];
+		}
+
+		const uint64_t IV512[8] = {
+			0x6A09E667F3BCC908, 0xBB67AE8584CAA73B,
+			0x3C6EF372FE94F82B, 0xA54FF53A5F1D36F1,
+			0x510E527FADE682D1, 0x9B05688C2B3E6C1F,
+			0x1F83D9ABFB41BD6B, 0x5BE0CD19137E2179
+		};
+
+		uint64_t r[8];
+#pragma unroll
+		for (int i = 0; i < 8; i++) {
+			r[i] = IV512[i];
+		}
+
+#if CUDART_VERSION >= 7050
+#pragma unroll 10
+#endif
+		for (int i = 0; i < 80; i += 8) {
+#pragma unroll
+			for (int ord = 0; ord < 8; ord++) {
+				SHA3_STEP(c_WB, r, W, ord, i + ord);
+			}
+		}
+
+		const uint64_t hashPosition = thread;
+		uint64_t *pHash = &g_outhash[hashPosition * 8U];
+
+#pragma unroll
+		for (int u = 0; u < 4; u++) {
+			pHash[u] = SWAP64(r[u] + IV512[u]);
+		}
+
+#ifdef NEED_HASH_512
+#pragma unroll
+		for (int u = 4; u < 8; u++) {
+			pHash[u] = SWAP64(r[u] + IV512[u]);
+		}
+#endif
+	}
+}
+
 __host__
 void x17_sha512_cpu_init(int thr_id, uint32_t threads)
 {
 	cudaMemcpyToSymbol(c_WB, WB, 80*sizeof(uint64_t), 0, cudaMemcpyHostToDevice);
+}
+
+__host__
+void x17_sha512_cpu_free(int thr_id)
+{
+
 }
 
 __host__
@@ -168,4 +261,28 @@ void x17_sha512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, 
 	dim3 block(threadsperblock);
 
 	x17_sha512_gpu_hash_64 <<<grid, block>>> (threads, (uint64_t*)d_hash);
+}
+
+void x17_sha512_setBlock_80(int thr_id, uint32_t *endiandata)
+{
+	cudaMemcpyToSymbol(c_PaddedMessage80, endiandata, sizeof(c_PaddedMessage80), 0, cudaMemcpyHostToDevice);
+}
+
+__host__
+void x17_sha512_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_outhash, int order)
+{
+	const uint32_t threadsperblock = 256;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	x17_sha512_gpu_hash_80 << <grid, block >> > (threads, startNounce, (uint64_t*)d_outhash);
+
+	MyStreamSynchronize(NULL, order, thr_id);
+}
+
+__host__
+void x14_shabal512_cpu_free(int thr_id)
+{
+
 }

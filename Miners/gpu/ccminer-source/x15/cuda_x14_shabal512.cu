@@ -35,6 +35,8 @@
  * @author Thomas Pornin <thomas.pornin@cryptolog.com>
  */
 
+static __constant__ uint32_t c_PaddedMessage80[20]; // padded message (80 bytes)
+
 /*
  * Part of this code was automatically generated (the part between
  * the "BEGIN" and "END" markers).
@@ -453,6 +455,109 @@ __global__ void x14_shabal512_gpu_hash_64(uint32_t threads, uint32_t startNounce
 	}
 }
 
+
+/***************************************************/
+// GPU Hash Function
+__global__ void x14_shabal512_gpu_hash_80(uint32_t threads, uint32_t startNounce, uint64_t *g_outhash)
+{
+	__syncthreads();
+
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	if (thread < threads)
+	{
+		uint32_t nounce = startNounce + thread;
+
+		uint32_t A00 = d_A512[0], A01 = d_A512[1], A02 = d_A512[2], A03 = d_A512[3],
+			A04 = d_A512[4], A05 = d_A512[5], A06 = d_A512[6], A07 = d_A512[7],
+			A08 = d_A512[8], A09 = d_A512[9], A0A = d_A512[10], A0B = d_A512[11];
+		uint32_t B0 = d_B512[0], B1 = d_B512[1], B2 = d_B512[2], B3 = d_B512[3],
+			B4 = d_B512[4], B5 = d_B512[5], B6 = d_B512[6], B7 = d_B512[7],
+			B8 = d_B512[8], B9 = d_B512[9], BA = d_B512[10], BB = d_B512[11],
+			BC = d_B512[12], BD = d_B512[13], BE = d_B512[14], BF = d_B512[15];
+		uint32_t C0 = d_C512[0], C1 = d_C512[1], C2 = d_C512[2], C3 = d_C512[3],
+			C4 = d_C512[4], C5 = d_C512[5], C6 = d_C512[6], C7 = d_C512[7],
+			C8 = d_C512[8], C9 = d_C512[9], CA = d_C512[10], CB = d_C512[11],
+			CC = d_C512[12], CD = d_C512[13], CE = d_C512[14], CF = d_C512[15];
+		uint32_t M0, M1, M2, M3, M4, M5, M6, M7, M8, M9, MA, MB, MC, MD, ME, MF;
+		uint32_t Wlow = 1, Whigh = 0;
+
+		uint32_t *pMessage = (uint32_t*)&c_PaddedMessage80[0];
+
+		M0 = pMessage[0];
+		M1 = pMessage[1];
+		M2 = pMessage[2];
+		M3 = pMessage[3];
+		M4 = pMessage[4];
+		M5 = pMessage[5];
+		M6 = pMessage[6];
+		M7 = pMessage[7];
+
+		M8 = pMessage[8];
+		M9 = pMessage[9];
+		MA = pMessage[10];
+		MB = pMessage[11];
+		MC = pMessage[12];
+		MD = pMessage[13];
+		ME = pMessage[14];
+		MF = pMessage[15];
+
+		INPUT_BLOCK_ADD;
+		XOR_W;
+		APPLY_P;
+		INPUT_BLOCK_SUB;
+		SWAP_BC;
+		INCR_W;
+
+		M0 = pMessage[16];
+		M1 = pMessage[17];
+		M2 = pMessage[18];
+		M3 = cuda_swab32(startNounce + thread);
+		M4 = 0x80;
+		M5 = M6 = M7 = M8 = M9 = MA = MB = MC = MD = ME = MF = 0;
+
+		INPUT_BLOCK_ADD;
+		XOR_W;
+		APPLY_P;
+
+		for (uint8_t i = 0; i < 3; i++)
+		{
+			SWAP_BC;
+			XOR_W;
+			APPLY_P;
+		}
+
+		int hashPosition = nounce - startNounce;
+		uint32_t *Hash = (uint32_t*)&g_outhash[hashPosition << 3];
+
+		Hash[0] = B0;
+		Hash[1] = B1;
+		Hash[2] = B2;
+		Hash[3] = B3;
+		Hash[4] = B4;
+		Hash[5] = B5;
+		Hash[6] = B6;
+		Hash[7] = B7;
+
+		Hash[8] = B8;
+		Hash[9] = B9;
+		Hash[10] = BA;
+		Hash[11] = BB;
+		Hash[12] = BC;
+		Hash[13] = BD;
+		Hash[14] = BE;
+		Hash[15] = BF;
+
+		//result = (Hash[3] <= target);
+
+		uint32_t *outpHash = (uint32_t*)&g_outhash[hashPosition << 3]; // [8 * hashPosition];
+
+		for (int i = 0; i < 16; i++)
+			outpHash[i] = Hash[i];
+	}
+}
+
+
 __host__ void x14_shabal512_cpu_init(int thr_id, uint32_t threads)
 {
 }
@@ -471,5 +576,24 @@ __host__ void x14_shabal512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t s
 	// fprintf(stderr, "threads=%d, %d blocks, %d threads per block, %d bytes shared\n", threads, grid.x, block.x, shared_size);
 
 	x14_shabal512_gpu_hash_64<<<grid, block, shared_size>>>(threads, startNounce, (uint64_t*)d_hash, d_nonceVector);
+	MyStreamSynchronize(NULL, order, thr_id);
+}
+
+
+__host__ void x14_shabal512_setBlock_80(int thr_id, uint32_t *endiandata)
+{
+	cudaMemcpyToSymbol(c_PaddedMessage80, endiandata, sizeof(c_PaddedMessage80), 0, cudaMemcpyHostToDevice);
+}
+
+__host__ void x14_shabal512_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order)
+{
+	const uint32_t threadsperblock = 256;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	size_t shared_size = 0;
+
+	x14_shabal512_gpu_hash_80 << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash);
 	MyStreamSynchronize(NULL, order, thr_id);
 }

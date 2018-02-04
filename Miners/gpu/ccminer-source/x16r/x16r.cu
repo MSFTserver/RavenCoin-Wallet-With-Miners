@@ -67,6 +67,8 @@ static const char *hash_names[X16R_HASH_COUNT] =
     "sha512",
 };
 
+static const bool run_parallel_fallback_jobs = true;
+
 typedef struct 
 {
     int                     id;
@@ -76,6 +78,7 @@ typedef struct
     int                     thr_id;
     uint32_t                joboffset;
     uint32_t                jobcount;
+	bool					has_work;
     uint32_t                nonce_begin;
     uint32_t                endiandata[20];
     int                     hash_selection;
@@ -85,9 +88,6 @@ typedef struct
     sph_echo512_context     ctx_echo;       //A
     sph_hamsi512_context    ctx_hamsi;      //B
     sph_fugue512_context    ctx_fugue;      //C
-    sph_shabal512_context   ctx_shabal;     //D
-    sph_sha512_context      ctx_sha512;     //F
-
 } subthread_t;
 
 static uint32_t *d_hash[MAX_GPUS];
@@ -247,7 +247,7 @@ static void *scanhash_cpufallback_thread(void *userdata)
 
 	while (1)
     {
-		while (!subthread.jobcount)
+		while (!subthread.has_work)
 		{
 			pthread_cond_wait(&subthread.cond, &subthread.mutex);
 
@@ -264,7 +264,7 @@ static void *scanhash_cpufallback_thread(void *userdata)
 			break;
 		}
 
-        for (uint32_t i = subthread.joboffset; i < subthread.joboffset + subthread.jobcount; i++)
+		for (uint32_t i = subthread.joboffset; i < subthread.joboffset + subthread.jobcount; i++)
         {
             uint32_t* target_hash = &h_hash[subthread.thr_id][16 * i];
             be32enc(&subthread.endiandata[19], subthread.nonce_begin + i);
@@ -291,25 +291,19 @@ static void *scanhash_cpufallback_thread(void *userdata)
                     sph_fugue512(&subthread.ctx_fugue, subthread.endiandata, 80);
                     sph_fugue512_close(&subthread.ctx_fugue, target_hash);
                     break;
-                case X16R_SHABAL:
-                    sph_shabal512_init(&subthread.ctx_shabal);
-                    sph_shabal512(&subthread.ctx_shabal, subthread.endiandata, 80);
-                    sph_shabal512_close(&subthread.ctx_shabal, target_hash);
-                    break;
-                case X16R_SHA512:
-                    sph_sha512_init(&subthread.ctx_sha512);
-                    sph_sha512(&subthread.ctx_sha512, subthread.endiandata, 80);
-                    sph_sha512_close(&subthread.ctx_sha512, target_hash);
-                break;
                 default:
                     gpulog(LOG_ERR, subthread.thr_id, "hash selection not valid for cpu multithreading: %d (this should never happen!)", &subthread.hash_selection);
                     break;
-            }   
+            } 
+
+			if (work_restart[subthread.thr_id].restart)
+			{
+				gpulog(LOG_WARNING, subthread.thr_id, "work_restart %d", subthread.id);
+				break;
+			}
         }
-
-        cudaMemcpy(d_hash[subthread.thr_id] + (subthread.joboffset * 16), h_hash[subthread.thr_id] + (subthread.joboffset * 16), (subthread.jobcount * 16) *sizeof(uint32_t), cudaMemcpyHostToDevice);
-
-        subthread.jobcount = 0;
+	
+        subthread.has_work = false;
 
 		pthread_cond_signal(&subthread.cond);
     }
@@ -322,6 +316,34 @@ static void *scanhash_cpufallback_thread(void *userdata)
 
 static bool init[MAX_GPUS] = { 0 };
 
+extern "C" void wait_for_fallback_jobs(int thr_id, int num_sub_threads)
+{
+	for (int i = 0; i < num_sub_threads; ++i)
+	{
+		subthread_t& sub_thr = sub_threads[thr_id][i];
+
+		pthread_mutex_lock(&sub_thr.mutex);
+
+		while (sub_thr.has_work && !sub_thr.exit_thread)
+		{
+			pthread_cond_wait(&sub_thr.cond, &sub_thr.mutex);
+
+			if (work_restart[thr_id].restart)
+			{
+				pthread_mutex_unlock(&sub_thr.mutex);
+				break;
+			}
+		}
+
+		pthread_mutex_unlock(&sub_thr.mutex);
+
+		if (work_restart[thr_id].restart)
+		{
+			break;
+		}
+	}
+}
+
 extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done)
 {
     uint32_t *pdata = work->data;
@@ -329,6 +351,31 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
     const uint32_t first_nonce = pdata[19];
     int intensity = (device_sm[device_map[thr_id]] >= 500 && !is_windows()) ? 20 : 19;
     uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity); // 19=256*256*8;
+
+	// EXPERIMENTAL - this is to see if we can reduce the bottleneck with the GPUs waiting for the CPU.
+	// It will greatly depend on the CPU to GPU ratio etc. 
+	int intensity_reduction = opt_cpu_fb_intensity_reduction;
+
+	int actual_intensity = (int)throughput2intensity(throughput);
+
+	if (intensity_reduction < 0)
+	{
+		intensity_reduction = 0;
+	}
+	else if (intensity_reduction > actual_intensity - 1)
+	{
+		intensity_reduction = actual_intensity - 1;
+	}
+
+	// Note that we have to call all the *512_cpu_init with the full throughput, but it
+	// appears that we can successfully run them all with lower throughput, which helps when
+	// running a cpu-fallback block.
+	uint32_t cpu_fallback_throughput = 1U << (actual_intensity - intensity_reduction);
+
+	if (cpu_fallback_throughput < 256)
+	{
+		cpu_fallback_throughput = 256;
+	}
 
     if (opt_benchmark)
     {
@@ -347,7 +394,8 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
             cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
             CUDA_LOG_ERROR();
         }
-        gpulog(LOG_INFO, thr_id, "Intensity set to %g, %u cuda threads", throughput2intensity(throughput), throughput);
+        gpulog(LOG_INFO, thr_id, "Normal Intensity set to %g, %u cuda threads", throughput2intensity(throughput), throughput);
+		gpulog(LOG_INFO, thr_id, "CPU-Fallback Intensity set to %g, %u cuda threads", throughput2intensity(cpu_fallback_throughput), cpu_fallback_throughput);
 
         quark_blake512_cpu_init(thr_id, throughput);
         quark_blake512_cpu_init(thr_id, throughput);
@@ -369,9 +417,9 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
         x15_whirlpool_cpu_init(thr_id, throughput, 0);
         x17_sha512_cpu_init(thr_id, throughput);
 
-        CUDA_CALL_OR_RET_X(cudaMalloc(&d_hash[thr_id], (size_t) 64 * throughput), 0);
+        CUDA_CALL_OR_RET_X(cudaMalloc(&d_hash[thr_id], (size_t) 64 * (size_t)throughput), 0);
 
-        h_hash[thr_id] = (uint32_t*)malloc((size_t)64 * throughput);
+        h_hash[thr_id] = (uint32_t*)malloc((size_t)64 * (size_t)throughput);
         
 		if (opt_debug)
         {
@@ -387,9 +435,12 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 			subthread_t& sub_thr = sub_threads[thr_id][i];
 
 			sub_thr.jobcount = 0;
+			sub_thr.has_work = false;
 			sub_thr.id = i;
 			sub_thr.thr_id = thr_id;
 			sub_thr.exit_thread = false;
+			sub_thr.cond = PTHREAD_COND_INITIALIZER;
+			sub_thr.mutex = PTHREAD_MUTEX_INITIALIZER;
 
 			int ret = pthread_mutex_init(&sub_thr.mutex, NULL);
 
@@ -455,256 +506,330 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
     }
 
     bool cpuFallback = false;
-    
-    switch (hash_selection[0])
-    {
-        case X16R_BLAKE:
-            quark_blake512_cpu_setBlock_80(thr_id, endiandata);
-            break;
-        case X16R_BMW:
-            quark_bmw512_cpu_setBlock_80(endiandata);
-            break;
-        case X16R_GROESTL:
-            groestl512_setBlock_80(thr_id, endiandata);
-            break;
-        case X16R_JH:
-            jh512_setBlock_80(thr_id, endiandata);
-            break;
-        case X16R_KECCAK:
-            keccak512_setBlock_80(thr_id, endiandata);
-            break;
-        case X16R_SKEIN:
-            skein512_cpu_setBlock_80(endiandata);
-            break;
-        case X16R_LUFFA:
-            qubit_luffa512_cpu_setBlock_80(endiandata);
-            break;
-        case X16R_CUBEHASH:
-            cubehash512_setBlock_80(thr_id, endiandata);
-            break;
-        case X16R_SHAVITE:
-            x11_shavite512_setBlock_80(endiandata);
-            break;
-        case X16R_SIMD:
-            cpuFallback = true;
-            if (opt_debug)
-            {
-                gpulog(LOG_DEBUG, thr_id, "Not yet implemented: simd512/80 (falling back on CPU for first round)");
-            }
-            break;
-        case X16R_ECHO:
-            cpuFallback = true;
-            if (opt_debug)
-            {
-                gpulog(LOG_DEBUG, thr_id, "Not yet implemented: echo512/80 (falling back on CPU for first round)");
-            }
-            break;
-        case X16R_HAMSI:
-            cpuFallback = true;
-            if (opt_debug)
-            {
-                gpulog(LOG_DEBUG, thr_id, "Not yet implemented: hamsi512/80 (falling back on CPU for first round)");
-            }
-            break;
-        case X16R_FUGUE:
-            cpuFallback = true;
-            if (opt_debug)
-            {
-                gpulog(LOG_DEBUG, thr_id, "Not yet implemented: fugue512/80 (falling back on CPU for first round)");
-            }
-            break;
-        case X16R_SHABAL:
-            cpuFallback = true;
-            if (opt_debug)
-            {
-                gpulog(LOG_DEBUG, thr_id, "Not yet implemented: shabal512/80 (falling back on CPU for first round)");
-            }
-            break;
-        case X16R_WHIRLPOOL:
-            whirlpool512_setBlock_80_sm3((void*)endiandata, ptarget);
-            break;
-        case X16R_SHA512:
-            cpuFallback = true;
-            if (opt_debug)
-            {
-                gpulog(LOG_DEBUG, thr_id, "Not yet implemented: sha512/80 (falling back on CPU for first round)");
-            }
-            break;
-        default:
-            gpulog(LOG_ERR, thr_id, "Unknown hash selection: %d (this should never happen!)", hash_selection[0]);
-            break;
-    }
+    bool new_gpu_algo = false;
+
+
+	switch (hash_selection[0])
+	{
+	case X16R_BLAKE:
+		quark_blake512_cpu_setBlock_80(thr_id, endiandata);
+		break;
+	case X16R_BMW:
+		quark_bmw512_cpu_setBlock_80(endiandata);
+		break;
+	case X16R_GROESTL:
+		groestl512_setBlock_80(thr_id, endiandata);
+		break;
+	case X16R_JH:
+		jh512_setBlock_80(thr_id, endiandata);
+		break;
+	case X16R_KECCAK:
+		keccak512_setBlock_80(thr_id, endiandata);
+		break;
+	case X16R_SKEIN:
+		skein512_cpu_setBlock_80(endiandata);
+		break;
+	case X16R_LUFFA:
+		qubit_luffa512_cpu_setBlock_80(endiandata);
+		break;
+	case X16R_CUBEHASH:
+		cubehash512_setBlock_80(thr_id, endiandata);
+		break;
+	case X16R_SHAVITE:
+		x11_shavite512_setBlock_80(endiandata);
+		break;
+	case X16R_SIMD:
+		cpuFallback = true;
+		if (opt_debug)
+		{
+			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: simd512/80 (falling back on CPU for first round)");
+		}
+		break;
+	case X16R_ECHO:
+		cpuFallback = true;
+		if (opt_debug)
+		{
+			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: echo512/80 (falling back on CPU for first round)");
+		}
+		break;
+	case X16R_HAMSI:
+		cpuFallback = true;
+		if (opt_debug)
+		{
+			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: hamsi512/80 (falling back on CPU for first round)");
+		}
+		break;
+	case X16R_FUGUE:
+		cpuFallback = true;
+		if (opt_debug)
+		{
+			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: fugue512/80 (falling back on CPU for first round)");
+		}
+		break;
+	case X16R_WHIRLPOOL:
+		whirlpool512_setBlock_80_sm3((void*)endiandata, ptarget);
+		break;
+	case X16R_SHABAL:
+		x14_shabal512_setBlock_80(thr_id, endiandata);
+		new_gpu_algo = true;
+		break;
+	case X16R_SHA512:
+		x17_sha512_setBlock_80(thr_id, endiandata);
+		new_gpu_algo = true;
+		break;
+	default:
+		gpulog(LOG_ERR, thr_id, "Unknown hash selection: %d (this should never happen!)", hash_selection[0]);
+		break;
+	}
 
     cuda_check_cpu_setTarget(ptarget);
 
 	if (cpuFallback)
 	{
 		gpulog(LOG_INFO, thr_id, "Partial GPU job - first round is CPU (%d threads).", num_sub_threads);
+
+		throughput = cpu_fallback_throughput;
 	}
 	else
 	{
-		gpulog(LOG_INFO, thr_id, "100%% GPU job.");
+		if (new_gpu_algo)
+		{
+			if (use_colors)
+			{
+				gpulog(LOG_INFO, thr_id, "100%% GPU job. \x1B[36m(New GPU Algorithm)\x1B[0m");
+			}
+			else
+			{
+				gpulog(LOG_INFO, thr_id, "100%% GPU job. (New GPU Algorithm)");
+			}
+		}
+		else
+		{
+			gpulog(LOG_INFO, thr_id, "100%% GPU job.");
+		}
+	}
+
+	bool first_pass = true;
+	bool last_was_invalid = false;
+
+	// There is a slight chance we bailed out while jobs were running, and whilst unlikely, they still be running.
+	wait_for_fallback_jobs(thr_id, num_sub_threads);
+
+	int num = (int)(throughput / num_sub_threads);
+	int extra = throughput - (num * num_sub_threads);
+
+	int start = 0;
+
+	for (int i = 0; i < num_sub_threads; ++i)
+	{
+		subthread_t& sub_thr = sub_threads[thr_id][i];
+
+		sub_thr.joboffset = start;
+		sub_thr.jobcount = num;
+
+		if (i < extra)
+		{
+			sub_thr.jobcount++;
+		}
+
+		start += sub_thr.jobcount;
 	}
 
     do
     {
         int order = 0;
 
-        memset(h_hash[thr_id], 0, (size_t)64 * throughput);
-
-        switch (hash_selection[0])
-        {
-            case X16R_BLAKE:
-                quark_blake512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                break;
-            case X16R_BMW:
-                quark_bmw512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-                break;
-            case X16R_GROESTL:
-                groestl512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                break;
-            case X16R_JH:
-                jh512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                break;
-            case X16R_KECCAK:
-                keccak512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                break;
-            case X16R_SKEIN:
-                skein512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], 1); order++;
-                break;
-            case X16R_LUFFA:
-                qubit_luffa512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-                break;
-            case X16R_CUBEHASH:
-                cubehash512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                break;
-            case X16R_SHAVITE:
-                x11_shavite512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-                break;
-            case X16R_WHIRLPOOL:
-                whirlpool512_hash_80_sm3(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                break;
-            case X16R_SIMD:
-            case X16R_ECHO:
-            case X16R_HAMSI:
-            case X16R_FUGUE:
-            case X16R_SHABAL:
-            case X16R_SHA512:
-                // Now handled on separate threads.
-                break;
-
-            default:
-                gpulog(LOG_ERR, thr_id, "Round %d unknown hash selection: %d (this should never happen!)", 0, hash_selection[0]);
-                break;
-        }
+		if (!cpuFallback)
+		{
+			switch (hash_selection[0])
+			{
+			case X16R_BLAKE:
+				quark_blake512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				break;
+			case X16R_BMW:
+				quark_bmw512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_GROESTL:
+				groestl512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				break;
+			case X16R_JH:
+				jh512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				break;
+			case X16R_KECCAK:
+				keccak512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				break;
+			case X16R_SKEIN:
+				skein512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], 1); order++;
+				break;
+			case X16R_LUFFA:
+				qubit_luffa512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_CUBEHASH:
+				cubehash512_cuda_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				break;
+			case X16R_SHAVITE:
+				x11_shavite512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_WHIRLPOOL:
+				whirlpool512_hash_80_sm3(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_SHA512:
+				x17_sha512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_SHABAL:
+				x14_shabal512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_SIMD:
+			case X16R_ECHO:
+			case X16R_HAMSI:
+			case X16R_FUGUE:
+				// Now handled on separate threads.
+				break;
+			default:
+				gpulog(LOG_ERR, thr_id, "Round %d unknown hash selection: %d (this should never happen!)", 0, hash_selection[0]);
+				break;
+			}
+		}
 
 		// FIXME: CPU fallback for unimplemented first round algorithms
         if (cpuFallback)
         {   
-            int num = (int)(throughput / num_sub_threads);
-            int extra = throughput - (num * num_sub_threads);
+			if (run_parallel_fallback_jobs && last_was_invalid)
+			{
+				// we need to discard the pre-emptive cpu-fallback jobs, as the start nonce has been changed.
+				wait_for_fallback_jobs(thr_id, num_sub_threads);
+			}
 
-            int start = 0;
+			if (work_restart[thr_id].restart)
+			{
+				break;
+			}
 
-	        for (int i = 0; i < num_sub_threads; ++i)
-            {
-                subthread_t& sub_thr = sub_threads[thr_id][i];
-
-				pthread_mutex_lock(&sub_thr.mutex);
-    
-                sub_thr.hash_selection = hash_selection[0];
-                
-                memcpy(sub_thr.endiandata, endiandata, sizeof(endiandata));
-
-                sub_thr.nonce_begin = pdata[19];
-                sub_thr.joboffset = start;
-
-                sub_thr.jobcount = num;
-
-                if (i < extra)
-                {
-                    sub_thr.jobcount++;
-                }
-
-                start += sub_thr.jobcount;
-
-                pthread_cond_signal(&sub_thr.cond);
-				pthread_mutex_unlock(&sub_thr.mutex);
-            }
-
-            // Wait for all sub-threads to complete :
-
-            for (int i = 0; i < num_sub_threads; ++i)
-            {
-                subthread_t& sub_thr = sub_threads[thr_id][i];
-
-                pthread_mutex_lock(&sub_thr.mutex);
-
-				while (sub_thr.jobcount > 0 && !sub_thr.exit_thread)
+			if (!run_parallel_fallback_jobs || first_pass || last_was_invalid)
+			{
+				for (int i = 0; i < num_sub_threads; ++i)
 				{
-					pthread_cond_wait(&sub_thr.cond, &sub_thr.mutex);
-				}
-	
-                pthread_mutex_unlock(&sub_thr.mutex);
-            }
-        }
+					subthread_t& sub_thr = sub_threads[thr_id][i];
 
-        for (int i = 1; i < X16R_HASH_COUNT; i++)
-        {
-            switch (hash_selection[i])
-            {
-                case X16R_BLAKE:
-                    quark_blake512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_BMW:
-                    quark_bmw512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_GROESTL:
-                    quark_groestl512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_JH:
-                    quark_jh512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_KECCAK:
-                    quark_keccak512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_SKEIN:
-                    quark_skein512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_LUFFA:
-                    x11_luffa512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_CUBEHASH:
-                    x11_cubehash512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_SHAVITE:
-                    x11_shavite512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_SIMD:
-                    x11_simd512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_ECHO:
-                    x11_echo512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_HAMSI:
-                    x13_hamsi512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_FUGUE:
-                    x13_fugue512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_SHABAL:
-                    x14_shabal512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_WHIRLPOOL:
-                    x15_whirlpool_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-                    break;
-                case X16R_SHA512:
-                    x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
-                    break;
-                default:
-                    gpulog(LOG_ERR, thr_id, "Round %d unknown hash selection: %d (this should never happen!)", i, hash_selection[i]);
-                    break;
-            }
+					pthread_mutex_lock(&sub_thr.mutex);
+
+					sub_thr.hash_selection = hash_selection[0];
+
+					memcpy(sub_thr.endiandata, endiandata, sizeof(endiandata));
+
+					sub_thr.nonce_begin = pdata[19];
+					sub_thr.has_work = true;
+
+					pthread_cond_signal(&sub_thr.cond);
+					pthread_mutex_unlock(&sub_thr.mutex);
+				}
+			}
+
+			wait_for_fallback_jobs(thr_id, num_sub_threads);
+
+			if (work_restart[thr_id].restart)
+			{
+				break;
+			}
+
+			cudaError ret = cudaMemcpy(d_hash[thr_id], h_hash[thr_id], 64 * (size_t)throughput, cudaMemcpyHostToDevice);
+
+			if (run_parallel_fallback_jobs)
+			{
+				first_pass = false;
+
+				if ((uint64_t)pdata[19] + (uint64_t)(throughput * 2) <= max_nonce)
+				{
+					// start the next set of cpu jobs in parallel with the gpu work.
+				
+					for (int i = 0; i < num_sub_threads; ++i)
+					{
+						subthread_t& sub_thr = sub_threads[thr_id][i];
+
+						pthread_mutex_lock(&sub_thr.mutex);
+
+						sub_thr.hash_selection = hash_selection[0];
+
+						memcpy(sub_thr.endiandata, endiandata, sizeof(endiandata));
+
+						sub_thr.nonce_begin = pdata[19] + throughput;
+						sub_thr.has_work = true;
+
+						pthread_cond_signal(&sub_thr.cond);
+						pthread_mutex_unlock(&sub_thr.mutex);
+					}
+				}
+			}
+		}
+
+		last_was_invalid = false;
+
+		if (work_restart[thr_id].restart)
+		{
+			break;
+		}
+
+		for (int i = 1; i < X16R_HASH_COUNT; i++)
+		{
+			switch (hash_selection[i])
+			{
+			case X16R_BLAKE:
+				quark_blake512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_BMW:
+				quark_bmw512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_GROESTL:
+				quark_groestl512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_JH:
+				quark_jh512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_KECCAK:
+				quark_keccak512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_SKEIN:
+				quark_skein512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_LUFFA:
+				x11_luffa512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_CUBEHASH:
+				x11_cubehash512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_SHAVITE:
+				x11_shavite512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_SIMD:
+				x11_simd512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_ECHO:
+				x11_echo512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_HAMSI:
+				x13_hamsi512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_FUGUE:
+				x13_fugue512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_SHABAL:
+				x14_shabal512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_WHIRLPOOL:
+				x15_whirlpool_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				break;
+			case X16R_SHA512:
+				x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				break;
+			default:
+				gpulog(LOG_ERR, thr_id, "Round %d unknown hash selection: %d (this should never happen!)", i, hash_selection[i]);
+				break;
+			}
+
+			if(work_restart[thr_id].restart)
+			{
+				break;
+			}
         }
 
         *hashes_done = pdata[19] - first_nonce + throughput;
@@ -743,6 +868,7 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
                     gpulog(LOG_WARNING, thr_id, "result for %08x does not validate on CPU!", work->nonces[0]);
                 }
                 pdata[19] = work->nonces[0] + 1;
+				last_was_invalid = true;
                 continue;
             }
         }
@@ -812,7 +938,8 @@ extern "C" void free_x16r(int thr_id)
     x13_fugue512_cpu_free(thr_id);
     whirlpool512_free_sm3(thr_id);
     x15_whirlpool_cpu_free(thr_id);
-
+	x14_shabal512_cpu_free(thr_id);
+	x17_sha512_cpu_free(thr_id);
     cuda_check_cpu_free(thr_id);
     init[thr_id] = false;
 

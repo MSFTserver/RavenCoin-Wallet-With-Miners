@@ -2308,7 +2308,7 @@ void whirlpool512_hash_64_sm3(int thr_id, uint32_t threads, uint32_t startNounce
 
 	x15_whirlpool_gpu_hash_64 <<<grid, block>>> (threads, startNounce, (uint64_t*)d_hash, d_nonceVector);
 
-	//MyStreamSynchronize(NULL, order, thr_id);
+	MyStreamSynchronize(NULL, order, thr_id);
 }
 
 __host__
@@ -2331,7 +2331,7 @@ extern uint32_t whirlpool512_finalhash_64(int thr_id, uint32_t threads, uint32_t
 }
 
 __host__
-void whirlpool512_hash_80_sm3(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_outputHash)
+void whirlpool512_hash_80_sm3(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_outputHash, int order)
 {
 	dim3 grid((threads + threadsperblock-1) / threadsperblock);
 	dim3 block(threadsperblock);
@@ -2340,6 +2340,8 @@ void whirlpool512_hash_80_sm3(int thr_id, uint32_t threads, uint32_t startNounce
 		applog(LOG_WARNING, "whirlpool requires a minimum of 256 threads to fetch constant tables!");
 
 	oldwhirlpool_gpu_hash_80<<<grid, block>>>(threads, startNounce, d_outputHash, 1);
+
+	MyStreamSynchronize(NULL, order, thr_id);
 }
 
 extern void whirl_midstate(void *state, const void *input);

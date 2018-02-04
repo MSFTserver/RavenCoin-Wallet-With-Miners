@@ -529,6 +529,7 @@ extern bool opt_showdiff;
 extern bool opt_tracegpu;
 extern int opt_n_threads;
 extern int opt_n_cpu_fallback_threads;
+extern int opt_cpu_fb_intensity_reduction;
 extern int active_gpus;
 extern int gpu_threads;
 extern int opt_timeout;

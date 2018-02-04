@@ -16,7 +16,7 @@ extern void whirlpool512_init_sm3(int thr_id, uint32_t threads, int mode);
 extern void whirlpool512_free_sm3(int thr_id);
 extern void whirlpool512_setBlock_80_sm3(void *pdata, const void *ptarget);
 extern void whirlpool512_hash_64_sm3(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_nonceVector, uint32_t *d_hash, int order);
-extern void whirlpool512_hash_80_sm3(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash);
+extern void whirlpool512_hash_80_sm3(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order);
 extern uint32_t whirlpool512_finalhash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_nonceVector, uint32_t *d_hash, int order);
 //#define _DEBUG
 #define _DEBUG_PREFIX "whirl"
@@ -115,7 +115,7 @@ extern "C" int scanhash_whirl(int thr_id, struct work* work, uint32_t max_nonce,
 	do {
 #ifdef SM3_VARIANT
 		int order = 1;
-		whirlpool512_hash_80_sm3(thr_id, throughput, pdata[19], d_hash[thr_id]);
+		whirlpool512_hash_80_sm3(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
 		TRACE64(" 80 :", d_hash);
 		whirlpool512_hash_64_sm3(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 		TRACE64(" 64 :", d_hash);

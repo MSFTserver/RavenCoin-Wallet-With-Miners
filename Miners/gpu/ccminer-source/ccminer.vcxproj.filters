@@ -988,6 +988,8 @@
     <CudaCompile Include="x15\cuda_x15_whirlpool_sm3.cu">
       <Filter>Source Files\CUDA\x15</Filter>
     </CudaCompile>
+    <CudaCompile Include="x15\cuda_whirlpoolx.cu" />
+    <CudaCompile Include="x15\whirlpoolx.cu" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\ccminer.ico">
