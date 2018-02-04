@@ -30,11 +30,11 @@ B. Pool Mining
  - GitHub Repo Containing Everything:
      - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners
  - CPU Windows:
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/4.0/cpuminer-Raven-Windows.zip
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/5.0/cpuminer-Raven-Windows.zip
  - CPU Linux (credit Epsylon3):
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/tree/master/Miners/cpu/cpuminer-source
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/5.0/cpuminer-Raven-Source.zip
  - GPU Miner INCOMPLETE Current release (still work in progress):
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/4.0/ccminer-x64-Raven-Windows.zip.
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/5.0/ccminer-x64-Raven-Windows.zip.
      - Credit: Penfold, MTarget, Austin, phabit2)
  
 3. Configure your miner.
