@@ -529,6 +529,7 @@
     <CudaCompile Include="x15\cuda_whirlpoolx.cu" />
     <CudaCompile Include="x15\cuda_x15_whirlpool_sm3.cu" />
     <CudaCompile Include="x15\whirlpoolx.cu" />
+    <CudaCompile Include="x16r\cuda_x16r_echo.cu" />
     <CudaCompile Include="zr5.cu" />
     <CudaCompile Include="heavy\cuda_blake512.cu">
     </CudaCompile>

@@ -990,6 +990,9 @@
     </CudaCompile>
     <CudaCompile Include="x15\cuda_whirlpoolx.cu" />
     <CudaCompile Include="x15\whirlpoolx.cu" />
+    <CudaCompile Include="x16r\cuda_x16r_echo.cu">
+      <Filter>Source Files\CUDA\x16r</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\ccminer.ico">

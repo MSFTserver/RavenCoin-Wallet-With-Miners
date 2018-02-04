@@ -281,8 +281,3 @@ void x17_sha512_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce, 
 	MyStreamSynchronize(NULL, order, thr_id);
 }
 
-__host__
-void x14_shabal512_cpu_free(int thr_id)
-{
-
-}

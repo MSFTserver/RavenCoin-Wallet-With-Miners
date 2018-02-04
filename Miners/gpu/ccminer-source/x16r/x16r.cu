@@ -85,7 +85,6 @@ typedef struct
 	bool					exit_thread;
 
     sph_simd512_context     ctx_simd;       //9
-    sph_echo512_context     ctx_echo;       //A
     sph_hamsi512_context    ctx_hamsi;      //B
     sph_fugue512_context    ctx_fugue;      //C
 } subthread_t;
@@ -276,11 +275,6 @@ static void *scanhash_cpufallback_thread(void *userdata)
                     sph_simd512(&subthread.ctx_simd, subthread.endiandata, 80);
                     sph_simd512_close(&subthread.ctx_simd, target_hash);
                     break;
-                case X16R_ECHO:
-                    sph_echo512_init(&subthread.ctx_echo);
-                    sph_echo512(&subthread.ctx_echo, subthread.endiandata, 80);
-                    sph_echo512_close(&subthread.ctx_echo, target_hash);
-                    break;
                 case X16R_HAMSI:
                     sph_hamsi512_init(&subthread.ctx_hamsi);
                     sph_hamsi512(&subthread.ctx_hamsi, subthread.endiandata, 80);
@@ -298,7 +292,6 @@ static void *scanhash_cpufallback_thread(void *userdata)
 
 			if (work_restart[subthread.thr_id].restart)
 			{
-				gpulog(LOG_WARNING, subthread.thr_id, "work_restart %d", subthread.id);
 				break;
 			}
         }
@@ -409,13 +402,13 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
         x11_cubehash512_cpu_init(thr_id, throughput);
         x11_shavite512_cpu_init(thr_id, throughput);
         x11_simd512_cpu_init(thr_id, throughput);
-        x11_echo512_cpu_init(thr_id, throughput);
         x13_hamsi512_cpu_init(thr_id, throughput);
         x13_fugue512_cpu_init(thr_id, throughput);
         x14_shabal512_cpu_init(thr_id, throughput);
         whirlpool512_init_sm3(thr_id, throughput, 0);
         x15_whirlpool_cpu_init(thr_id, throughput, 0);
-        x17_sha512_cpu_init(thr_id, throughput);
+		x16r_echo512_cpu_init(thr_id, throughput);
+		x17_sha512_cpu_init(thr_id, throughput);
 
         CUDA_CALL_OR_RET_X(cudaMalloc(&d_hash[thr_id], (size_t) 64 * (size_t)throughput), 0);
 
@@ -439,8 +432,6 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 			sub_thr.id = i;
 			sub_thr.thr_id = thr_id;
 			sub_thr.exit_thread = false;
-			sub_thr.cond = PTHREAD_COND_INITIALIZER;
-			sub_thr.mutex = PTHREAD_MUTEX_INITIALIZER;
 
 			int ret = pthread_mutex_init(&sub_thr.mutex, NULL);
 
@@ -508,7 +499,6 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
     bool cpuFallback = false;
     bool new_gpu_algo = false;
 
-
 	switch (hash_selection[0])
 	{
 	case X16R_BLAKE:
@@ -538,18 +528,26 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 	case X16R_SHAVITE:
 		x11_shavite512_setBlock_80(endiandata);
 		break;
+	case X16R_ECHO:
+		x16r_echo512_cpu_setBlock_80(endiandata);
+		new_gpu_algo = true;
+		break;
+	case X16R_WHIRLPOOL:
+		whirlpool512_setBlock_80_sm3((void*)endiandata, ptarget);
+		break;
+	case X16R_SHABAL:
+		x14_shabal512_setBlock_80(thr_id, endiandata);
+		new_gpu_algo = true;
+		break;
+	case X16R_SHA512:
+		x17_sha512_setBlock_80(thr_id, endiandata);
+		new_gpu_algo = true;
+		break;
 	case X16R_SIMD:
 		cpuFallback = true;
 		if (opt_debug)
 		{
 			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: simd512/80 (falling back on CPU for first round)");
-		}
-		break;
-	case X16R_ECHO:
-		cpuFallback = true;
-		if (opt_debug)
-		{
-			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: echo512/80 (falling back on CPU for first round)");
 		}
 		break;
 	case X16R_HAMSI:
@@ -565,17 +563,6 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 		{
 			gpulog(LOG_DEBUG, thr_id, "Not yet implemented: fugue512/80 (falling back on CPU for first round)");
 		}
-		break;
-	case X16R_WHIRLPOOL:
-		whirlpool512_setBlock_80_sm3((void*)endiandata, ptarget);
-		break;
-	case X16R_SHABAL:
-		x14_shabal512_setBlock_80(thr_id, endiandata);
-		new_gpu_algo = true;
-		break;
-	case X16R_SHA512:
-		x17_sha512_setBlock_80(thr_id, endiandata);
-		new_gpu_algo = true;
 		break;
 	default:
 		gpulog(LOG_ERR, thr_id, "Unknown hash selection: %d (this should never happen!)", hash_selection[0]);
@@ -596,11 +583,11 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 		{
 			if (use_colors)
 			{
-				gpulog(LOG_INFO, thr_id, "100%% GPU job. \x1B[36m(New GPU Algorithm)\x1B[0m");
+				gpulog(LOG_INFO, thr_id, "100%% GPU job. \x1B[36m(New GPU Algorithm : %s)\x1B[0m", hash_names[hash_selection[0]]);
 			}
 			else
 			{
-				gpulog(LOG_INFO, thr_id, "100%% GPU job. (New GPU Algorithm)");
+				gpulog(LOG_INFO, thr_id, "100%% GPU job. (New GPU Algorithm : %s)", hash_names[hash_selection[0]]);
 			}
 		}
 		else
@@ -679,8 +666,10 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 			case X16R_SHABAL:
 				x14_shabal512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
 				break;
-			case X16R_SIMD:
 			case X16R_ECHO:
+				x16r_echo512_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
+				break;
+			case X16R_SIMD:
 			case X16R_HAMSI:
 			case X16R_FUGUE:
 				// Now handled on separate threads.
@@ -804,7 +793,7 @@ extern "C" int scanhash_x16r(int thr_id, struct work* work, uint32_t max_nonce, 
 				x11_simd512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 				break;
 			case X16R_ECHO:
-				x11_echo512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
+				x16r_echo512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 				break;
 			case X16R_HAMSI:
 				x13_hamsi512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
