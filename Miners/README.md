@@ -1,5 +1,5 @@
 A. Solo Mining
- 1. Download Wallet https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/tag/6.0.
+ 1. Download Wallet https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/tag/6.0
  
   - then launch Raven-QT, Encrypt wallet(optional), wait for wallet to sync.
  
@@ -30,11 +30,11 @@ B. Pool Mining
  - GitHub Repo Containing Everything:
      - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners
  - CPU Windows:
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/cpuminer-multi-rvn-windows.zip.
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/cpuminer-multi-rvn-windows.zip
  - CPU Linux (credit Epsylon3):
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/cpuminer-multi-rvn-source.zip.
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/cpuminer-multi-rvn-source.zip
  - GPU Miner COMPLETE:
-     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/ccminer-2.2.5-rvn-windows.zip.
+     - https://github.com/MSFTserver/RavenCoin-Wallet-With-Miners/releases/download/6.0/ccminer-2.2.5-rvn-windows.zip
      - (Credit: @tpruvot)
  
 3. Configure your miner.
