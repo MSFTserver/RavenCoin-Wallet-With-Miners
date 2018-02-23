@@ -4,7 +4,7 @@
 
 #### Example test
 
-The [example_test.py](https://github.com/RavenProject/example_test.py) is a heavily commented example of a test case that uses both
+The [example_test.py](example_test.py) is a heavily commented example of a test case that uses both
 the RPC and P2P interfaces. If you are writing your first test, copy that file
 and modify to fit your needs.
 
