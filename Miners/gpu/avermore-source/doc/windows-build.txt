@@ -1,0 +1,342 @@
+######################################################################################
+#                                                                                    #
+#          Native WIN32 setup and build instructions (on mingw32/Windows):           #
+#                                                                                    #
+######################################################################################
+
+(See bottom of file for steps to cross-build for Win32 from Linux.)
+
+**************************************************************************************
+* Introduction                                                                       *
+**************************************************************************************
+The following instructions have been tested on both Windows 7 and Windows XP.
+Most of what is described below (copying files, downloading files, etc.) can be done
+directly in the MinGW MSYS shell; these instructions do not do so because package
+versions and links change over time. The best way is to use your browser, go to the
+links directly, and see for yourself which versions you want to install.
+Winrar was used to do the extracting of archive files in the making of this guide.
+
+If you think that this documentation was helpful and you wish to donate, you can
+do so at the following address. 12KaKtrK52iQjPdtsJq7fJ7smC32tXWbWr
+
+**************************************************************************************
+* A tip that might help you along the way                                            *
+**************************************************************************************
+Enable "QuickEdit Mode" in your Command Prompt Window or MinGW Command Prompt
+Window (No need to go into the context menu to choose edit-mark/copy/paste):
+Right-click on the title bar and click Properties. Under the Options tab, check
+the box for "QuickEdit Mode". Alternately, if you want this change to be
+permanent on all of your Command Prompt Windows; you can click Defaults instead
+of Properties as described above. Now you can drag and select text you want to
+copy, right-click to copy the text to the clipboard and right-click once again to
+paste it at the desired location. You could for example, copy some text from this
+document to the clipboard and right click in your Command Prompt Window to paste
+what you copied.
+
+**************************************************************************************
+* Install mingw32                                                                    *
+**************************************************************************************
+Download and install the following Mingw32 version by doing a google search for:
+"mingw-get-inst-20120426"
+This is currently a known working version, but this could be a different version
+later.
+
+During installation, select all the check boxes (excluding "Fortran Compiler") so that
+everything is installed.
+
+**************************************************************************************
+* Run the MSYS shell for the first time to create your user directory                *
+**************************************************************************************
+(Start Icon/keyboard key ==> All Programs ==> MinGW ==> MinGW Shell).
+This will create your user directory for you.
+
+**************************************************************************************
+* Install pthreads                                                                   *
+**************************************************************************************
+Type the lines below to install pthreads:
+mingw-get install pthreads
+
+**************************************************************************************
+* Install libpdcurses                                                                *
+**************************************************************************************
+Type the lines below to install libpdcurses.
+mingw-get install mingw32-libpdcurses
+mingw-get install mingw32-pdcurses
+Ctrl-D or typing "logout" and pressing the enter key should get you out of the
+window.
+
+**************************************************************************************
+* Download or copy sgminer source to your MSYS working directory                     *
+**************************************************************************************
+
+Download sgminer from source. In mingw32, type:
+ git clone git://github.com/sgminer-dev/sgminer.git
+
+or
+
+Copy sgminer source code directory into:
+\MinGW\msys\1.0\home\(folder with your user name)
+
+For SGMINER it will look like:
+\MinGW\msys\1.0\home\(folder with your user name)\Sgminer-Master\ 
+when unzipped.
+
+**************************************************************************************
+* Install AMD APP SDK, latest version (only if you want GPU mining)                  *
+**************************************************************************************
+Go to this url for the latest AMD APP SDK:
+ http://developer.amd.com/tools-and-sdks/opencl-zone/amd-accelerated-parallel-processing-app-sdk/
+Go to this url for legacy AMD APP SDK's:
+ http://developer.amd.com/tools-and-sdks/opencl-zone/amd-accelerated-parallel-processing-app-sdk/download-archive/
+Download and install the Windows 32 bit version.
+Copy the folders in \Program Files (x86)\AMD APP\include to \MinGW\include
+Copy \Program Files (x86)\AMD APP\lib\x86\libOpenCL.a to \MinGW\lib
+Note: If you are on a 32 bit version of windows "Program Files (x86)" will be
+"Program Files".
+Note2: If you update your APP SDK later you might want to recopy the above files
+
+**************************************************************************************
+* Install AMD ADL SDK, latest version (only if you want GPU monitoring)              *
+**************************************************************************************
+
+Warning: sgminer 5.0.0 does NOT yet support ADL SDK 7.0, so you will have to install the version 6.0 instead.
+This may change in a future version of sgminer.
+
+Go to this url ==> http://developer.amd.com/tools/graphics-development/display-library-adl-sdk/
+Download and unzip the file you downloaded.
+Pull adl_defines.h, adl_sdk.h, and adl_structures.h out of the include folder
+Put those files into the ADL_SDK folder in your source tree as shown below.
+\MinGW\msys\1.0\home\(folder with your user name)\sgminer\ADL_SDK
+
+**************************************************************************************
+* Install GTK-WIN, required for Pkg-config in the next step                          *
+**************************************************************************************
+Go to this url ==> http://sourceforge.net/projects/gtk-win/
+Download the file.
+After you have downloaded the file Double click/run it and this will install GTK+
+I chose all the selection boxes when I installed.
+Copy libglib-2.0-0.dll and intl.dll from \Program Files (x86)\gtk2-runtime\bin to
+\MinGW\bin
+Note: If you are on a 32 bit version of windows "Program Files (x86)" will be
+"Program Files".
+
+**************************************************************************************
+* Install pkg-config                                                                 *
+**************************************************************************************
+Go to this url ==> http://www.gtk.org/download/win32.php
+Scroll down to where it shows pkg-cfg under GTK+ 2.x
+Download the file from the "Tool" link. Extract "pkg-config.exe" from bin and place in
+your  \MinGW\bin directory.
+Download the file from the "Dev" link. Extract "pkg.m4" from share\aclocal and place
+in your \MingW\share\aclocal directory.
+
+**************************************************************************************
+* Install libcurl                                                                    *
+**************************************************************************************
+Go to this url ==> http://curl.haxx.se/download.html#Win32
+At the section where it says "Win32 - Generic", Click on the link that indicates
+Win32 2000.XP 7.xx.x libcurl SSL and download it.
+Extract the files that are in the zip (bin, include, and lib) to their respective
+locations in MinGW (\MinGW\bin, \MinGW\include, and \MinGW\lib).
+Edit the file \MinGW\lib\pkgconfig\libcurl.pc and search for the line that ends 
+with "-lcurl", and make it say "-lcurl -lcurldll".
+Ref. http://old.nabble.com/gcc-working-with-libcurl-td20506927.html
+
+**************************************************************************************
+* Install jansson in the submodules of sgminer                                       *
+**************************************************************************************
+
+Go to this url:
+ http://www.digip.org/jansson/
+
+Download the latest version of jansson available.
+Unzip, extract and copy all the content of the janson-x.x folder into your folder:
+ \MinGW\msys\1.0\home\(folder with your user name)\sgminer\submodules\jansson
+ 
+In mingw32, go to your jansson folder. Usually by typing:
+ cd sgminer/submodules/jansson
+
+Now install jansson by typing:
+autoreconf -i --force --install
+./configure
+make
+make install
+
+**************************************************************************************
+* Build sgminer.exe                                                                  *
+**************************************************************************************
+Run the MinGW MSYS shell
+(Start Icon/keyboard key ==> All Programs ==> MinGW ==> MinGW Shell).
+Change the working directory to your sgminer project folder.
+Example: cd sgminer-master [Enter Key] if you are unsure then type "ls -la"
+Another way is to type "cd sg" and then press the tab key; It will auto fill.
+Type the lines below one at a time. Look for problems after each one before going on
+to the next.
+
+      adl.sh (optional - see below - skip this entirely)
+      autoreconf -fvi
+      CFLAGS="-O2 -msse2" ./configure (for GPU mining add --enable-opencl, see below: "Some ./configure options")
+      make
+      strip sgminer.exe  <== only do this if you are not compiling for debugging
+      
+In the event ther are error messages, you MAY have to start from scratch by going
+back to the "Install AMD APP SDK, latest version" step because these lines will modify
+your files from the original form.
+
+**************************************************************************************
+* Copy files to a build directory/folder                                             *
+**************************************************************************************
+Make a directory and copy the following files into it. This will be your sgminer
+Folder that you use for mining. Remember the .cl filenames could change on later
+releases. If you installed a different version of libcurl then some of those dll's
+may be different as well.
+  sgminer.exe     from \MinGW\msys\1.0\home\(username)\sgminer
+  kernel folder   from \MinGW\msys\1.0\home\(username)\sgminer
+  libcurl.dll     from \MinGW\bin
+  libidn-11.dll   from \MinGW\bin
+  libeay32.dll    from \MinGW\bin
+  ssleay32.dll    from \MinGW\bin
+  libpdcurses.dll from \MinGW\bin
+  pthreadGC2.dll  from \MinGW\bin
+  zlib1.dll       from \MinGW\bin
+  doc folder      from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+  README.md       from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+  AUTHORS.md      from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+  ChangeLog       from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+  COPYING         from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+  example.conf    from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+  NEWS.md         from \MinGW\msys\1.0\home\(username)\sgminer (optional)
+
+**************************************************************************************
+* Optional - Install Git into MinGW/MSYS                                             *
+**************************************************************************************
+Go to this url ==> http://code.google.com/p/msysgit/
+Click on the Downloads tab.
+Download the latest "Portable" git archive.
+Extract the git*.exe files from the bin folder and put them into \MinGW\bin.
+Extract the share\git-core folder and place it into \MinGW\share.
+After the previous step you should have a folder called \MinGW\share\git-core.
+To test if it is working, open a MinGW shell and type the following:
+  git config -–global core.autocrlf false (note: one time run only)
+  git clone git://github.com/sgminer-dev/sgminer.git
+
+If you simply just want to update the source after you have already cloned, type:
+  git pull
+"git pull" did not work for me. Try the following which does the same thing:
+  git fetch && git merge FETCH_HEAD
+
+Now you can get the latest source directly from github.
+
+**************************************************************************************
+* Optional - Make a .sh file to automate copying over ADL files                      *
+**************************************************************************************
+Make a folder/directory in your home folder and name it ADL_SDK.
+ (ref:  \MinGW\msys\1.0\home\(folder with your user name)\ADL_SDK)
+Copy the ADL .h files into that folder/directory.
+Open your favorite text editor and type the following into it.
+ cp -av ../ADL_SDK/*.h ADL_SDK
+Save the file as "adl.sh" and then place the file into "\MinGW\msys\1.0\bin".
+From now on when your current working directory is the sgminer source directory
+You can simply type "adl.sh" and it will place the ADL header files into place
+For you. Make sure you never remove the ADL_SDK folder from your home folder.
+
+**************************************************************************************
+* Some ./configure options                                                           *
+**************************************************************************************
+--enable-opencl         Enable support for GPU mining with opencl
+--disable-adl           Override detection and disable building with ADL
+--disable-adl-checks    Override detection and assume ADL is present
+--disable-libcurl       Disable building with libcurl for getwork and GBT support
+--without-curses        Compile support for curses TUI (default enabled)
+
+
+
+######################################################################################
+#                                                                                    #
+#       Cross-compiling for Windows from Linux                                       #
+#                                                                                    #
+######################################################################################
+
+It is possible to cross-compile Windows binaries from Linux. The
+process is a bit different to the native steps shown above (it is also
+possible to use wine and the native steps, but this is more messing
+around, very slow, and not advisable.)
+
+** Install mingw cross compiler
+
+On Ubuntu/Debian:
+
+sudo apt-get install mingw32
+
+** create a directory to hold our cross-library dependencies
+
+We'll create a directory outside the source tree to hold non-system
+libraries we depend on. We could put these in
+/usr/i586-mingw32msvc/lib or anywhere else, instead (though keeping it
+outside /usr means we can set it up without root privileges.)
+
+IMPORTANT: If you put this directory inside your sgminer directory,
+remember 'make distclean' may delete it!
+
+mkdir -p ../win32/lib
+cd ../win32
+mkdir include
+mkdir bin
+
+NB: All following steps assume you are in the "win32" directory. Adjust as necessary.
+
+** pdcurses
+
+wget http://internode.dl.sourceforge.net/project/pdcurses/pdcurses/3.4/pdc34dllw.zip
+unzip /home/gus/Downloads/pdc34dllw.zip
+mv *.h include/
+mv pdcurses.lib lib/
+mv pdcurses.dll bin/
+
+** pthreads-w32
+
+(NB: I found pthreads-w32 2.9.1 doesn't seem to work properly, transfers time out
+early due to sem_timedwait exiting immediately(?))
+
+wget -O lib/libpthread.a ftp://sourceware.org/pub/pthreads-win32/prebuilt-dll-2-8-0-release/lib/libpthreadGC2.a
+wget -O include/pthread.h ftp://sourceware.org/pub/pthreads-win32/prebuilt-dll-2-8-0-release/include/pthread.h
+wget -O include/sched.h ftp://sourceware.org/pub/pthreads-win32/prebuilt-dll-2-8-0-release/include/sched.h
+wget -O include/semaphore.h ftp://sourceware.org/pub/pthreads-win32/prebuilt-dll-2-8-0-release/include/semaphore.h
+wget -O lib/libpthread.a ftp://sourceware.org/pub/pthreads-win32/prebuilt-dll-2-8-0-release/lib/libpthreadGC2.a
+wget -O bin/pthreadGC2.dll ftp://sourceware.org/pub/pthreads-win32/prebuilt-dll-2-8-0-release/lib/pthreadGC2.dll
+
+** libcurl
+
+wget http://curl.haxx.se/gknw.net/7.33.0/dist-w32/curl-7.33.0-devel-mingw32.zip
+unzip curl-7.33.0-devel-mingw32.zip
+mv curl-7.33.0-devel-mingw32/include/* include/
+mv curl-7.33.0-devel-mingw32/lib/* lib/
+mv curl-7.33.0-devel-mingw32/bin/* bin/
+rm -rf curl-7.33.0-devel-mingw32
+
+
+** clean up
+
+rm *.zip
+
+
+** Building
+
+Below assumes you're building in a "build-win32" or similar directory
+inside the sgminer directory. Fix up the -I and -L paths appropriately
+if you're building in-tree or someplace else.
+
+Configure command:
+
+CPPFLAGS="-I`pwd`/../../win32/include" LDFLAGS="-L`pwd`/../../win32/lib -lcurldll" ../autogen.sh --prefix=/usr/local/i586-mingw32 --host=i586-mingw32msvc --build=i686-linux 
+
+^^^ Plus whatever configure arguments you want to add. Note the paths
+    to win32 that you may need to change.
+
+And make:
+
+make
+
+After building, the next steps are the same as for native
+building as given under "Copy files to a build directory/folder"
+(DLLs can all be found in the win32/bin directory.)
