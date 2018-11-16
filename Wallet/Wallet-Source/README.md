@@ -3,17 +3,15 @@ Raven Core integration/staging tree
 
 https://ravencoin.org
 
-What is Raven?
+What is Ravencoin?
 ----------------
 
-Raven is an experimental digital currency that enables instant payments to
-anyone, anywhere in the world. Raven uses peer-to-peer technology to operate
+Ravencoin is an experimental digital currency that enables instant payments to
+anyone, anywhere in the world. Ravencoin uses peer-to-peer technology to operate
 with no central authority: managing transactions and issuing money are carried
-out collectively by the network. Raven Core is the name of open source
-software which enables the use of this currency.
+out collectively by the network. 
 
-For more information, as well as an immediately useable, binary version of
-the Raven Core software, see https://ravencoin.org
+
 
 License
 -------
@@ -101,5 +99,5 @@ Bitcoin is and always should be focused on its goals of being a better form of m
 
 In the new global economy, borders and jurisdictions will be less relevant as more assets are tradable and trade across borders is increasingly frictionless. In an age where people can move significant amounts of wealth instantly using Bitcoin, global consumers will likely demand the same efficiency for their securities and similar asset holdings.
 
-For such a global system to work it will need to be independent of regulatory jurisdictions.  This is not due to ideological belief but practicality: if the rails for blockchain asset transfer are not censorship resistance and jurisdiction agnostic, any given jurisdiction may be in conflict with another.  In legacy systems, wealth was generally confined in the jurisdiction of the holder and therefor easy to control based on the policies of that jurisdiction. Because of the global nature of blockchain technology any protocol level ability to control wealth would potentially place jurisdictions in conflict and will not be able to operate fairly.  
+For such a global system to work it will need to be independent of regulatory jurisdictions.  This is not due to ideological belief but practicality: if the rails for blockchain asset transfer are not censorship resistance and jurisdiction agnostic, any given jurisdiction may be in conflict with another.  In legacy systems, wealth was generally confined in the jurisdiction of the holder and therefore easy to control based on the policies of that jurisdiction. Because of the global nature of blockchain technology any protocol level ability to control wealth would potentially place jurisdictions in conflict and will not be able to operate fairly.  
 
